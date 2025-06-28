@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h4>📦 Lista de Proveedores</h4>
+
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary mb-3">🔙 Volver</a>
+
+    <!-- Botón para mostrar formulario -->
+    <button class="btn btn-success mb-3" onclick="document.getElementById('formulario-proveedor').classList.toggle('d-none')">➕ Agregar Proveedor</button>
+
+    <!-- Formulario oculto inicialmente -->
+    <div id="formulario-proveedor" class="card p-3 mb-4 d-none">
+        <form method="POST" action="{{ url_for('agregar_proveedor') }}">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <input type="text" name="nombre" class="form-control" placeholder="Nombre" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <input type="text" name="contacto" class="form-control" placeholder="Contacto" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <input type="text" name="telefono" class="form-control" placeholder="Teléfono" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <input type="text" name="direccion" class="form-control" placeholder="Dirección" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">💾 Guardar</button>
+        </form>
+    </div>
+
+    <!-- Tabla de proveedores -->
+    <table class="table table-bordered text-center">
+        <thead>
+            <tr>
+                <th>🎀 Nombre</th>
+                <th>🧑‍💼 Contacto</th>
+                <th>📞 Teléfono</th>
+                <th>📍 Dirección</th>
+                <th>🔍 Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for proveedor in proveedores %}
+            <tr>
+                <td>{{ proveedor[1] }}</td>
+                <td>{{ proveedor[2] }}</td>
+                <td>{{ proveedor[3] }}</td>
+                <td>{{ proveedor[4] }}</td>
+                <td>
+                    <a href="{{ url_for('detalle_proveedor', proveedor_id=proveedor[0]) }}" class="btn btn-info btn-sm">Abrir</a>
+                    <form method="POST" action="{{ url_for('eliminar_proveedor', proveedor_id=proveedor[0]) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este proveedor?');">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

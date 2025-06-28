@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Agregar Usuario</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+        }
+
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .btn {
+            background-color: #8e44ad;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #9b59b6;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>➕ Agregar Usuario</div>
+        <a href="{{ url_for('dashboard') }}" class="btn">Volver al Dashboard</a>
+    </header>
+
+    <div class="container">
+        <form method="POST" action="{{ url_for('registrar_usuario') }}">
+            <label>Nombre:</label>
+            <input type="text" name="nombre" required>
+
+            <label>Email:</label>
+            <input type="email" name="email" required>
+
+            <label>Contraseña:</label>
+            <input type="password" name="password" required>
+
+            <button class="btn" type="submit">Registrar Usuario</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4>📘 Cliente: <strong>{{ cliente[1] }}</strong></h4>
+            <p><strong>ID:</strong> {{ cliente[0] }}</p>
+
+            {% if cliente[2] %}
+                <img src="{{ url_for('static', filename='images/' ~ cliente[2]) }}" class="img-thumbnail" width="200">
+            {% endif %}
+
+            <hr>
+
+            <h5 class="mt-3">💰 Estado de Cuenta</h5>
+
+            <!-- Aquí se fuerza espacio con mb-3 o estilo -->
+            <div style="margin-bottom: 20px;" class="d-flex justify-content-between align-items-center">
+                <span>📦 <strong>Total Entregado:</strong> {{ "%.2f"|format(total_entregado) }} USD</span>
+                <a href="{{ url_for('ver_entregas', cliente_id=cliente[0]) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+            </div>
+
+            <div style="margin-bottom: 20px;" class="d-flex justify-content-between align-items-center">
+                <span>🔁 <strong>Total Devoluciones:</strong> {{ "%.2f"|format(total_devoluciones) }} USD</span>
+                <a href="{{ url_for('ver_devoluciones', cliente_id=cliente[0]) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+            </div>
+
+            <div style="margin-bottom: 20px;" class="d-flex justify-content-between align-items-center">
+                <span>💵 <strong>Total Abonos:</strong> {{ "%.2f"|format(total_abonos) }} USD</span>
+                <a href="{{ url_for('ver_abonos', cliente_id=cliente[0]) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+            </div>
+
+            <div style="margin-bottom: 10px;" class="d-flex justify-content-between align-items-center">
+                <span>💳 <strong>Total Deuda:</strong> <span class="text-danger">{{ "%.2f"|format(total_deuda) }} USD</span></span>
+            </div>
+
+            <div class="mt-4">
+                <a href="{{ url_for('descargar_pdf', cliente_id=cliente[0]) }}" class="btn btn-danger">📄 Descargar PDF</a>
+                <a href="{{ url_for('clientes') }}" class="btn btn-secondary">🔙 Volver</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

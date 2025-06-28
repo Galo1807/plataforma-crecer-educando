@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h4>💵 Detalle de Abonos - {{ cliente[1] }}</h4>
+
+    <!-- FORMULARIO PARA AGREGAR ABONO -->
+    <form method="POST" action="{{ url_for('agregar_abono', cliente_id=cliente[0]) }}" enctype="multipart/form-data" class="mb-4 border p-3 rounded">
+        <h5>➕ Agregar Abono</h5>
+        <div class="mb-2">
+            <label for="fecha">📅 Fecha:</label>
+            <input type="date" name="fecha" class="form-control" required>
+        </div>
+        <div class="mb-2">
+            <label for="valor">💵 Valor del abono:</label>
+            <input type="number" name="valor" class="form-control" step="0.01" required>
+        </div>
+        <div class="mb-2">
+            <label for="referencia">📝 Comentario o referencia:</label>
+            <input type="text" name="referencia" class="form-control">
+        </div>
+        <div class="mb-2">
+            <label for="comprobante">📎 Comprobante (JPG o PDF):</label>
+            <input type="file" name="comprobante" class="form-control" accept=".jpg,.jpeg,.png,.pdf">
+        </div>
+        <button type="submit" class="btn btn-success">💾 Guardar Abono</button>
+    </form>
+
+    <!-- TABLA DE ABONOS -->
+    <table class="table table-bordered mt-3">
+        <thead class="table-light">
+            <tr>
+                <th>📅 Fecha</th>
+                <th>💲 Valor</th>
+                <th>📝 Referencia</th>
+                <th>📎 Comprobante</th>
+                <th>🗑️ Eliminar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for abono in abonos %}
+            <tr>
+                <td>{{ abono[3] }}</td>
+                <td>{{ "%.2f"|format(abono[2]) }} USD</td>
+                <td>{{ abono[4] }}</td>
+                <td class="text-center">
+                    {% if abono[5] %}
+                        <a href="{{ url_for('static', filename='comprobantes/' ~ abono[5]) }}" target="_blank">Ver</a>
+                        <form method="POST" action="{{ url_for('eliminar_comprobante', cliente_id=cliente[0], abono_id=abono[0]) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar comprobante?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger ms-2">🗑️</button>
+                        </form>
+                    {% else %}
+                        <span class="text-muted">Sin comprobante</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <form method="POST" action="{{ url_for('eliminar_abono', cliente_id=cliente[0], abono_id=abono[0]) }}" onsubmit="return confirm('¿Eliminar este abono completamente?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('ver_cliente', cliente_id=cliente[0]) }}" class="btn btn-secondary">🔙 Volver</a>
+</div>
+{% endblock %}

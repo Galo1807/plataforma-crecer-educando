@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h4>🔁 Registro de Devoluciones - {{ cliente[1] }}</h4>
+
+    <form method="POST" action="{{ url_for('agregar_devolucion', cliente_id=cliente[0]) }}">
+        <table class="table table-bordered text-center">
+            <thead>
+                <tr>
+                    <th>📅 Fecha</th>
+                    {% for libro in libros %}
+                        <th>{{ libro[1] }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Fila de precios -->
+                <tr>
+                    <td><strong>💲 Precio</strong></td>
+                    {% for libro in libros %}
+                        <td>${{ libro[2] }}</td>
+                    {% endfor %}
+                </tr>
+                <!-- Fila de cantidades -->
+                <tr>
+                    <td><input type="text" name="nota" class="form-control" placeholder="Nota de devolución"></td>
+                    {% for libro in libros %}
+                        <td>
+                            <input type="hidden" name="materias[]" value="{{ libro[1] }}">
+                            <input type="number" name="cantidades[]" class="form-control" min="0" value="0" required>
+                        </td>
+                    {% endfor %}
+                </tr>
+                <!-- Fila de fecha -->
+                <tr>
+                    <td colspan="{{ libros|length + 1 }}">
+                        <input type="date" name="fecha" class="form-control" required>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <button type="submit" class="btn btn-primary">➕ Agregar Nota</button>
+        <a href="{{ url_for('ver_cliente', cliente_id=cliente[0]) }}" class="btn btn-secondary">🔙 Volver</a>
+    </form>
+
+    <hr>
+
+    <h5 class="mt-4">📊 Totales por Materia en el Año</h5>
+    <table class="table table-striped text-center">
+        <thead>
+            <tr>
+                <th>📘 Materia</th>
+                <th>🔁 Total Devuelto</th>
+                <th>💲 Precio Unitario</th>
+                <th>💰 Total USD</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for libro in libros %}
+            <tr>
+                <td>{{ libro[1] }}</td>
+                <td>{{ totales[libro[1]].cantidad }}</td>
+                <td>${{ libro[2] }}</td>
+                <td>${{ "%.2f"|format(totales[libro[1]].cantidad * libro[2]) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="table-success">
+                <th colspan="3">TOTAL GENERAL</th>
+                <th>${{ "%.2f"|format(total_general) }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <hr>
+
+    <h5 class="mt-4">📄 Detalle por Nota de Devolución</h5>
+    <table class="table table-hover text-center">
+        <thead class="table-light">
+            <tr>
+                <th>🧾 Nota</th>
+                <th>📅 Fecha</th>
+                {% for libro in libros %}
+                    <th>{{ libro[1] }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for nota, grupo in detalle_notas.items() %}
+            <tr>
+                <td>
+                    {{ nota or 'Sin Nota' }}
+                    <form method="POST" action="{{ url_for('eliminar_nota_devolucion', cliente_id=cliente[0]) }}" style="display:inline;">
+                        <input type="hidden" name="nota" value="{{ nota }}">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar esta nota?')">🗑️</button>
+                    </form>
+                </td>
+                <td>{{ grupo.fecha }}</td>
+                {% for libro in libros %}
+                    <td>{{ grupo.get(libro[1], 0) }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

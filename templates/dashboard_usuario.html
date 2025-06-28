@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Usuario{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>👤 Bienvenido, {{ session['admin'] }}</h2>
+
+    <div class="row mt-4">
+        <!-- Clientes -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-body text-center">
+                    <div>
+                        <span class="fs-5 d-block mb-2">📁 Clientes</span>
+                        <a href="{{ url_for('clientes') }}" class="btn btn-primary">Abrir</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Proveedores -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-body text-center">
+                    <div>
+                        <span class="fs-5 d-block mb-2">📦 Proveedores</span>
+                        <a href="{{ url_for('vista_proveedores') }}" class="btn btn-primary">Abrir</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

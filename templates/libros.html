@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Libros - Plataforma Editorial</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+        }
+
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .btn {
+            background-color: #27ae60;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        .btn:hover {
+            background-color: #2ecc71;
+        }
+
+        .libro-card {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .libro-card img {
+            width: 80px;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .formulario {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        a.volver {
+            display: inline-block;
+            margin-top: 15px;
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        a.volver:hover {
+            text-decoration: underline;
+        }
+    </style>
+    <script>
+        function toggleFormulario() {
+            const form = document.getElementById('formulario_libro');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <div>📚 Libros</div>
+        <a href="{{ url_for('dashboard') }}" class="btn">Volver al Dashboard</a>
+    </header>
+
+    <div class="container">
+        <button class="btn" onclick="toggleFormulario()">➕ Agregar Libro</button>
+
+        <div id="formulario_libro" class="formulario">
+            <form method="POST" action="{{ url_for('agregar_libro') }}" enctype="multipart/form-data">
+                <label>Nombre del libro:</label>
+                <input type="text" name="nombre" required>
+
+                <label>Precio:</label>
+                <input type="text" name="precio" required>
+
+                <label>Imagen:</label>
+                <input type="file" name="imagen" required>
+
+                <button class="btn" type="submit">Guardar</button>
+            </form>
+        </div>
+
+        <h3>📖 Libros Registrados</h3>
+        {% for libro in libros %}
+            <div class="libro-card">
+                <img src="{{ url_for('static', filename='images/' + libro[3]) }}" alt="Imagen del libro">
+                <div>
+                    <strong>{{ libro[1] }}</strong><br>
+                    Precio: ${{ libro[2] }}
+                </div>
+            </div>
+        {% else %}
+            <p>No hay libros registrados aún.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h4>📦 Detalle del Proveedor: {{ proveedor[1] }}</h4>
+    <a href="{{ url_for('vista_proveedores') }}" class="btn btn-primary mb-3">🔙 Volver</a>
+
+    <!-- Información del proveedor -->
+    <div class="mb-3">
+        <h5>✨ Información</h5>
+        <p><strong>Contacto:</strong> {{ proveedor[2] }}</p>
+        <p><strong>Teléfono:</strong> {{ proveedor[3] }}</p>
+        <p><strong>Dirección:</strong> {{ proveedor[4] }}</p>
+    </div>
+
+    <!-- Resumen financiero -->
+    <div class="mb-4">
+        <h5>💰 Resumen de Cuenta</h5>
+        <ul>
+            <li><strong>Total Deuda:</strong> ${{ total_deuda }}</li>
+            <li><strong>Total Abonado:</strong> ${{ total_abonos }}</li>
+            <li><strong>Saldo Pendiente:</strong> ${{ total_deuda - total_abonos }}</li>
+        </ul>
+    </div>
+
+    <!-- Registrar Deuda -->
+    <div class="card p-3 mb-4">
+        <h5>➕ Registrar Deuda</h5>
+        <form method="POST" action="{{ url_for('agregar_deuda_proveedor', proveedor_id=proveedor[0]) }}">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <input type="date" name="fecha" class="form-control" required>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <input type="number" name="valor" step="0.01" class="form-control" placeholder="Valor" required>
+                </div>
+                <div class="col-md-5 mb-2">
+                    <input type="text" name="descripcion" class="form-control" placeholder="Descripción" required>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <button type="submit" class="btn btn-primary w-100">🐢 Guardar Deuda</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Registrar Abono -->
+    <div class="card p-3 mb-4">
+        <h5>➕ Registrar Abono</h5>
+        <form method="POST" action="{{ url_for('agregar_abono_proveedor', proveedor_id=proveedor[0]) }}" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <input type="date" name="fecha" class="form-control" required>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <input type="number" name="valor" step="0.01" class="form-control" placeholder="Valor" required>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <input type="text" name="descripcion" class="form-control" placeholder="Descripción" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <input type="file" name="foto_comprobante" class="form-control" accept="image/*">
+                </div>
+                <div class="col-md-12 text-end">
+                    <button type="submit" class="btn btn-info mt-2">🔥 Guardar Abono</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+
+    <!-- Tabla de Deudas -->
+    <h5 class="mt-4">📄 Deudas</h5>
+    <table class="table table-bordered text-center">
+        <thead>
+            <tr>
+                <th>📅 Fecha</th>
+                <th>💲 Valor</th>
+                <th>📝 Descripción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if deudas %}
+                {% for deuda in deudas %}
+                <tr>
+                    <td>{{ deuda[0] }}</td>
+                    <td>${{ deuda[1] }}</td>
+                    <td>{{ deuda[2] }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="3">No hay deudas registradas</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <!-- Tabla de Abonos -->
+    <h5 class="mt-4">🙎‍♂️ Abonos</h5>
+    <table class="table table-bordered text-center">
+        <thead>
+            <tr>
+                <th>📅 Fecha</th>
+                <th>💲 Valor</th>
+                <th>📝 Descripción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if abonos %}
+                {% for abono in abonos %}
+                <tr>
+                    <td>{{ abono[0] }}</td>
+                    <td>${{ abono[1] }}</td>
+                    <td>{{ abono[2] }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="3">No hay abonos registrados</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
