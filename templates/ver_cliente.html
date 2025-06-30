@@ -36,6 +36,7 @@
 
             <div class="mt-4">
                 <a href="{{ url_for('descargar_pdf', cliente_id=cliente[0]) }}" class="btn btn-danger">📄 Descargar PDF</a>
+		<a href="{{ url_for('descargar_excel', cliente_id=cliente[0]) }}" class="btn btn-success">📊 Descargar Excel</a>
                 <a href="{{ url_for('clientes') }}" class="btn btn-secondary">🔙 Volver</a>
             </div>
         </div>

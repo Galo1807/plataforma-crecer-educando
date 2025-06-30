@@ -1,33 +1,26 @@
 import sqlite3
 
-# Conexión a la base de datos correcta
-conn = sqlite3.connect('database/editorial.db')
+# Ruta a tu base de datos
+DATABASE = 'database/editorial.db'
+
+# Conexión y creación de tabla
+conn = sqlite3.connect(DATABASE)
 c = conn.cursor()
 
-# Tabla de deudas de proveedores
-c.execute("""
-    CREATE TABLE IF NOT EXISTS deudas_proveedor (
+# Crear la tabla 'entregas' si no existe
+c.execute('''
+    CREATE TABLE IF NOT EXISTS entregas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        proveedor_id INTEGER,
-        fecha TEXT,
-        valor REAL,
-        descripcion TEXT,
-        FOREIGN KEY (proveedor_id) REFERENCES proveedores(id)
+        cliente_id INTEGER NOT NULL,
+        materia TEXT NOT NULL,
+        cantidad INTEGER NOT NULL,
+        precio REAL NOT NULL,
+        nota TEXT,
+        fecha TEXT NOT NULL
     )
-""")
-
-# Tabla de abonos a proveedores
-c.execute("""
-    CREATE TABLE IF NOT EXISTS abonos_proveedor (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        proveedor_id INTEGER,
-        fecha TEXT,
-        valor REAL,
-        descripcion TEXT,
-        FOREIGN KEY (proveedor_id) REFERENCES proveedores(id)
-    )
-""")
-
+''')
 
 conn.commit()
 conn.close()
+
+print("✅ Tabla 'entregas' creada correctamente.")

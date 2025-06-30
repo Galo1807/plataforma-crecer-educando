@@ -6,6 +6,10 @@ from flask import send_file
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import pandas as pd
+from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill
 
 app = Flask(__name__)
 app.secret_key = 'editorial_secret_key'
@@ -810,6 +814,137 @@ def eliminar_proveedor(proveedor_id):
     conn.close()
     flash("Proveedor eliminado exitosamente", "success")
     return redirect(url_for('vista_proveedores'))
+
+@app.route('/descargar_excel/<int:cliente_id>')
+def descargar_excel(cliente_id):
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+
+    # Obtener nombre del cliente
+    c.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+    cliente = c.fetchone()
+    nombre_cliente = cliente[1] if cliente else "Desconocido"
+
+    # Obtener ventas
+    c.execute("""
+        SELECT nota, fecha, libro, cantidad
+        FROM ventas
+        WHERE cliente_id = ?
+    """, (cliente_id,))
+    ventas = c.fetchall()
+
+    # Obtener devoluciones
+    c.execute("""
+        SELECT 'DEV' as nota, fecha, libro, -cantidad
+        FROM devoluciones
+        WHERE cliente_id = ?
+    """, (cliente_id,))
+    devoluciones = c.fetchall()
+
+    # Unir ventas y devoluciones
+    datos = ventas + devoluciones
+    conn.close()
+
+    # Crear DataFrame
+    df = pd.DataFrame(datos, columns=["Nota", "Fecha", "Materia", "Cantidad"])
+    df_pivot = df.pivot_table(index=["Nota", "Fecha"], columns="Materia", values="Cantidad", fill_value=0).reset_index()
+
+    # Fila de total por materia
+    total_row = ["TOTAL", ""]
+    for col in df_pivot.columns[2:]:
+        total_row.append(df_pivot[col].sum())
+    df_pivot.loc[len(df_pivot)] = total_row
+
+    # Obtener precios desde tabla libros
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute("SELECT nombre, precio FROM libros")
+    precios_dict = dict(c.fetchall())
+    conn.close()
+
+    # Fila precios (después de TOTAL)
+    precio_row = ["Precio x materia", ""]
+    for col in df_pivot.columns[2:]:
+        precio_row.append(precios_dict.get(col, 0))
+    df_pivot.loc[len(df_pivot)] = precio_row
+
+    # Fila Subtotal USD
+    subtotal_row = ["Subtotal USD", ""]
+    for col in df_pivot.columns[2:]:
+        total = df_pivot.iloc[-2][col]  # TOTAL
+        precio = df_pivot.iloc[-1][col]  # Precio
+        subtotal_row.append(total * precio)
+    df_pivot.loc[len(df_pivot)] = subtotal_row
+
+    # Totales a la derecha
+    total_libros = sum(df_pivot.iloc[-3, 2:])
+    total_usd = sum(df_pivot.iloc[-1, 2:])
+    total_filas = len(df_pivot)
+
+    df_pivot["TOTAL LIBROS"] = [""] * (total_filas - 3) + [total_libros, "", ""]
+    df_pivot["TOTAL USD"] = [""] * (total_filas - 1) + [total_usd]
+
+    # Guardar en memoria con estilo
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_pivot.to_excel(writer, index=False, sheet_name='Entregas Detalladas')
+        ws = writer.book["Entregas Detalladas"]
+
+        # Estilos
+        bold_font = Font(bold=True)
+        fill_header = PatternFill("solid", fgColor="CCE5FF")
+        fill_total = PatternFill("solid", fgColor="FFFFCC")
+        fill_devolucion = PatternFill("solid", fgColor="FFD5C0")
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            nota = row[0].value
+            for cell in row:
+                cell.border = border
+                if cell.row == 1:
+                    cell.font = bold_font
+                    cell.fill = fill_header
+                elif cell.row in [total_filas - 1 + 1, total_filas, total_filas + 1]:
+                    cell.fill = fill_total
+                elif nota == "DEV":
+                    cell.fill = fill_devolucion
+
+        # Ajustar ancho de columnas
+        for column_cells in ws.columns:
+            length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
+            col_letter = column_cells[0].column_letter
+            ws.column_dimensions[col_letter].width = length + 2
+
+        # Obtener abonos
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        c.execute("SELECT fecha, monto FROM abonos WHERE cliente_id = ?", (cliente_id,))
+        abonos = c.fetchall()
+        conn.close()
+
+        if abonos:
+            start_row = total_filas + 5
+            ws.cell(row=start_row, column=1, value="Abonos").font = bold_font
+            ws.cell(row=start_row + 1, column=1, value="Fecha").font = bold_font
+            ws.cell(row=start_row + 1, column=2, value="Monto").font = bold_font
+
+            for i, (fecha, monto) in enumerate(abonos):
+                ws.cell(row=start_row + 2 + i, column=1, value=fecha)
+                ws.cell(row=start_row + 2 + i, column=2, value=monto)
+
+            total_abonos = sum(a[1] for a in abonos)
+            ws.cell(row=start_row + 2 + len(abonos), column=1, value="TOTAL ABONOS").font = bold_font
+            ws.cell(row=start_row + 2 + len(abonos), column=2, value=total_abonos).font = bold_font
+
+    output.seek(0)
+    nombre_archivo = f"estado_cuenta_{nombre_cliente.replace(' ', '_')}.xlsx"
+    return send_file(output, download_name=nombre_archivo, as_attachment=True,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 if __name__ == '__main__':
