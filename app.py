@@ -7,9 +7,10 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import pandas as pd
-from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl import Workbook
+import openpyxl
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
 app = Flask(__name__)
 app.secret_key = 'editorial_secret_key'
@@ -26,6 +27,10 @@ def precio_del_libro(nombre):
     conn.close()
     return resultado[0] if resultado else 0.0
 
+def get_db_connection():
+    conn = sqlite3.connect('database/editorial.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # Obtener cliente
 def obtener_cliente(cliente_id):
@@ -49,6 +54,27 @@ def obtener_entregas(cliente_id):
     conn.close()
     return entregas
 
+def guardar_entrega(cliente_id, fecha, nota, materias, cantidades, descuentos, precios, imagen):
+    conn = sqlite3.connect('database/editorial.db')
+    cursor = conn.cursor()
+
+    nombre_imagen = None
+    if imagen and imagen.filename:
+        nombre_imagen = secure_filename(imagen.filename)
+        ruta_directorio = os.path.join('static', 'notas')
+        os.makedirs(ruta_directorio, exist_ok=True)
+        imagen.save(os.path.join(ruta_directorio, nombre_imagen))
+
+    for materia, cantidad, descuento, precio in zip(materias, cantidades, descuentos, precios):
+        if int(cantidad) > 0:
+            cursor.execute("""
+                INSERT INTO ventas (cliente_id, fecha, nota, libro, cantidad, precio_unitario, descuento, imagen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cliente_id, fecha, nota, materia, int(cantidad), float(precio), int(descuento), nombre_imagen))
+
+    conn.commit()
+    conn.close()
+
 
 # Obtener devoluciones
 def obtener_devoluciones(cliente_id):
@@ -67,25 +93,6 @@ def obtener_abonos(cliente_id):
     abonos = c.fetchall()
     conn.close()
     return abonos
-
-# Guardar entrega
-def guardar_entrega(cliente_id, fecha, nota, materias, cantidades):
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    for materia, cantidad in zip(materias, cantidades):
-        if materia and cantidad:
-            # Consultar el precio real del libro
-            c.execute("SELECT precio FROM libros WHERE nombre = ?", (materia,))
-            precio = c.fetchone()
-            if precio:
-                c.execute("""
-                    INSERT INTO ventas (cliente_id, libro, cantidad, precio_unitario, fecha, nota)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (cliente_id, materia, int(cantidad), precio[0], fecha, nota))
-
-    conn.commit()
-    conn.close()
-
 
 # Guardar devolución
 def guardar_devolucion(cliente_id, fecha, materia, cantidad):
@@ -388,53 +395,34 @@ def agregar_cliente():
 @app.route('/ver_cliente/<int:cliente_id>')
 def ver_cliente(cliente_id):
     conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
-    cliente = c.fetchone()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+    cliente = cursor.fetchone()
+
+    cursor.execute("SELECT cantidad, precio_unitario, descuento FROM ventas WHERE cliente_id = ?", (cliente_id,))
+    ventas = cursor.fetchall()
+
+    total_entregado = sum(
+        cantidad * (precio_unitario * (1 - descuento / 100))
+        for cantidad, precio_unitario, descuento in ventas
+    )
+
+    cursor.execute("SELECT libro, cantidad FROM devoluciones WHERE cliente_id = ?", (cliente_id,))
+    devoluciones = cursor.fetchall()
+    total_devoluciones = sum(cant * precio_del_libro(lib) for lib, cant in devoluciones)
+
+    cursor.execute("SELECT monto FROM abonos WHERE cliente_id = ?", (cliente_id,))
+    abonos = cursor.fetchall()
+    total_abonos = sum(a[0] for a in abonos)
+
     conn.close()
-
-    if not cliente:
-        flash("Cliente no encontrado", "danger")
-        return redirect(url_for('clientes'))
-
-    # Obtener movimientos financieros
-    entregas = obtener_entregas(cliente_id)
-    devoluciones = obtener_devoluciones(cliente_id)
-    abonos = obtener_abonos(cliente_id)
-
-    # DEBUG: Verifica el contenido de entregas
-    print("▶️ ENTREGAS:")
-    for e in entregas:
-        print("Registro:", e)
-
-    # Calcular totales con índices correctos
-    try:
-        total_entregado = sum(float(e[2]) * float(e[3]) for e in entregas)
-    except Exception as ex:
-        print("❌ Error al calcular total_entregado:", ex)
-        total_entregado = 0.0
-
-    try:
-        total_devoluciones = sum(float(d[3]) * float(precio_del_libro(d[2])) for d in devoluciones)
-
-    except Exception as ex:
-        print("❌ Error al calcular total_devoluciones:", ex)
-        total_devoluciones = 0.0
-
-
-    try:
-        total_abonos = sum(float(a[2]) for a in abonos)
-    except:
-        total_abonos = 0.0
 
     total_deuda = total_entregado - total_devoluciones - total_abonos
 
     return render_template(
         'ver_cliente.html',
         cliente=cliente,
-        entregas=entregas,
-        devoluciones=devoluciones,
-        abonos=abonos,
         total_entregado=round(total_entregado, 2),
         total_devoluciones=round(total_devoluciones, 2),
         total_abonos=round(total_abonos, 2),
@@ -456,10 +444,16 @@ def eliminar_cliente(cliente_id):
 def agregar_entrega(cliente_id):
     fecha = request.form['fecha']
     nota = request.form['nota']
-    materias = request.form.getlist('materias[]')  # lista de materias
-    cantidades = request.form.getlist('cantidades[]')  # lista de cantidades
-    guardar_entrega(cliente_id, fecha, nota, materias, cantidades)
-    return redirect(url_for('ver_cliente', cliente_id=cliente_id))
+    materias = request.form.getlist('materias[]')
+    cantidades = request.form.getlist('cantidades[]')
+    descuentos = request.form.getlist('descuentos[]')
+    precios = request.form.getlist('precios[]')
+    imagen = request.files.get('imagen')
+
+    guardar_entrega(cliente_id, fecha, nota, materias, cantidades, descuentos, precios, imagen)
+
+    return redirect(url_for('ver_entregas', cliente_id=cliente_id))
+
 
 @app.route('/cliente/<int:cliente_id>/agregar_devolucion', methods=['POST'])
 def agregar_devolucion(cliente_id):
@@ -581,72 +575,67 @@ def logout():
     session.pop('admin', None)
     return redirect(url_for('login'))
 
-@app.route('/cliente/<int:cliente_id>/entregas')
+@app.route('/cliente/<int:cliente_id>/entregas', methods=['GET', 'POST'])
 def ver_entregas(cliente_id):
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
+    conn = sqlite3.connect('database/editorial.db')
+    cursor = conn.cursor()
 
-    # Obtener cliente
-    c.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
-    cliente = c.fetchone()
+    # Obtener datos del cliente
+    cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+    cliente = cursor.fetchone()
 
-    # Obtener entregas agrupadas
-    c.execute("""
-        SELECT fecha, nota, libro, SUM(cantidad) as cantidad
+    # Obtener libros del sistema
+    cursor.execute("SELECT nombre, precio FROM libros")
+    libros_db = cursor.fetchall()
+    libros = [(i, libro[0], libro[1]) for i, libro in enumerate(libros_db)]  # (índice, nombre, precio)
+
+    # Obtener entregas
+    cursor.execute("""
+        SELECT id, cliente_id, libro, cantidad, precio_unitario, fecha, nota, descuento, imagen
         FROM ventas
         WHERE cliente_id = ?
-        GROUP BY fecha, nota, libro
         ORDER BY fecha DESC
     """, (cliente_id,))
-    entregas = c.fetchall()
-
-    # Obtener lista de libros
-    c.execute("SELECT * FROM libros")
-    libros = c.fetchall()
-
-    # Calcular totales por materia
-    totales = {}
-    total_general = 0.0
-    for libro in libros:
-        nombre = libro[1]
-        precio = libro[2]
-        cantidad_total = sum(e[3] for e in entregas if e[2] == nombre)
-        totales[nombre] = {'cantidad': cantidad_total}
-        total_general += cantidad_total * precio
+    entregas_raw = cursor.fetchall()
 
     # Agrupar por nota
-    detalle_notas = {}
-    for entrega in entregas:
-        fecha, nota, materia, cantidad = entrega
-        nota = nota if nota else 'Sin Nota'
-
-        if nota not in detalle_notas:
-            detalle_notas[nota] = {
-                'fecha': fecha,
-                'materias': {}
+    notas_dict = {}
+    for e in entregas_raw:
+        nota = e[6]
+        if nota not in notas_dict:
+            notas_dict[nota] = {
+                'fecha': e[5],
+                'libros': {},
+                'descuento': {},
+                'imagen': e[8]
             }
+        notas_dict[nota]['libros'][e[2]] = e[3]  # cantidades
+        notas_dict[nota]['descuento'][e[2]] = e[7]  # descuentos por libro
 
-        if materia in detalle_notas[nota]['materias']:
-            detalle_notas[nota]['materias'][materia] += cantidad
-        else:
-            detalle_notas[nota]['materias'][materia] = cantidad
+    # Generar estructura organizada para la vista
+    entregas = []
+    for nota, datos in notas_dict.items():
+        fila = {
+            'nota': nota,
+            'fecha': datos['fecha'],
+            'cantidades': [],
+            'total': 0,
+            'descuentos': [],
+            'imagen': datos['imagen']
+        }
+        for _, nombre_libro, precio_libro in libros:
+            cantidad = datos['libros'].get(nombre_libro, 0)
+            descuento = datos['descuento'].get(nombre_libro, 0)
+            precio_final = precio_libro * (1 - descuento / 100)
+            subtotal = cantidad * precio_final
+            fila['cantidades'].append(cantidad if cantidad > 0 else "-")
+            fila['descuentos'].append(f"{descuento}%" if cantidad > 0 else "-")
+            fila['total'] += subtotal
+        entregas.append(fila)
 
     conn.close()
+    return render_template('ver_entregas.html', cliente=cliente, libros=libros, entregas=entregas)
 
-    return render_template(
-        'ver_entregas.html',
-        cliente=cliente,
-        entregas=entregas,
-        libros=libros,
-        totales=totales,
-        total_general=total_general,
-        detalle_notas=detalle_notas
-    )
-
-
-    cliente = obtener_cliente(cliente_id)
-    devoluciones = obtener_devoluciones(cliente_id)
-    return render_template('ver_devoluciones.html', cliente=cliente, devoluciones=devoluciones)
 
 @app.route('/cliente/<int:cliente_id>/devoluciones')
 def ver_devoluciones(cliente_id):
@@ -815,136 +804,153 @@ def eliminar_proveedor(proveedor_id):
     flash("Proveedor eliminado exitosamente", "success")
     return redirect(url_for('vista_proveedores'))
 
-@app.route('/descargar_excel/<int:cliente_id>')
+
+@app.route('/cliente/<int:cliente_id>/descargar_excel')
 def descargar_excel(cliente_id):
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
+    conn = sqlite3.connect('database/editorial.db')
+    cursor = conn.cursor()
 
-    # Obtener nombre del cliente
-    c.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
-    cliente = c.fetchone()
-    nombre_cliente = cliente[1] if cliente else "Desconocido"
+    cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+    cliente = cursor.fetchone()
 
-    # Obtener ventas
-    c.execute("""
-        SELECT nota, fecha, libro, cantidad
+    cursor.execute("""
+        SELECT nota, fecha, libro, cantidad, precio_unitario, descuento
         FROM ventas
         WHERE cliente_id = ?
+        ORDER BY fecha ASC
     """, (cliente_id,))
-    ventas = c.fetchall()
+    ventas = cursor.fetchall()
 
-    # Obtener devoluciones
-    c.execute("""
-        SELECT 'DEV' as nota, fecha, libro, -cantidad
+    cursor.execute("""
+        SELECT fecha, monto
+        FROM abonos
+        WHERE cliente_id = ?
+        ORDER BY fecha ASC
+    """, (cliente_id,))
+    abonos = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT fecha, libro, cantidad
         FROM devoluciones
         WHERE cliente_id = ?
+        ORDER BY fecha ASC
     """, (cliente_id,))
-    devoluciones = c.fetchall()
+    devoluciones = [(None, *row) for row in cursor.fetchall()]
 
-    # Unir ventas y devoluciones
-    datos = ventas + devoluciones
-    conn.close()
+    materias_presentes = sorted({v[2] for v in ventas + devoluciones})
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    hoja.title = "Estado de Cuenta"
 
-    # Crear DataFrame
-    df = pd.DataFrame(datos, columns=["Nota", "Fecha", "Materia", "Cantidad"])
-    df_pivot = df.pivot_table(index=["Nota", "Fecha"], columns="Materia", values="Cantidad", fill_value=0).reset_index()
+    # Estilos
+    borde = Border(left=Side(style='thin'), right=Side(style='thin'),
+                   top=Side(style='thin'), bottom=Side(style='thin'))
 
-    # Fila de total por materia
-    total_row = ["TOTAL", ""]
-    for col in df_pivot.columns[2:]:
-        total_row.append(df_pivot[col].sum())
-    df_pivot.loc[len(df_pivot)] = total_row
+    def aplicar_estilo_fila(fila_celdas, color_hex, negrita=True):
+        for celda in fila_celdas:
+            celda.fill = PatternFill(start_color=color_hex, end_color=color_hex, fill_type='solid')
+            celda.font = Font(bold=negrita)
+            celda.border = borde
 
-    # Obtener precios desde tabla libros
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute("SELECT nombre, precio FROM libros")
-    precios_dict = dict(c.fetchall())
-    conn.close()
+    # ENCABEZADO
+    encabezado = ['Nota', 'Fecha'] + materias_presentes + ['TOTAL LIBROS', 'TOTAL USD']
+    hoja.append(encabezado)
 
-    # Fila precios (después de TOTAL)
-    precio_row = ["Precio x materia", ""]
-    for col in df_pivot.columns[2:]:
-        precio_row.append(precios_dict.get(col, 0))
-    df_pivot.loc[len(df_pivot)] = precio_row
+    # Calcular precios con descuento
+    precios_desc = []
+    for m in materias_presentes:
+        for v in ventas:
+            if v[2] == m:
+                precios_desc.append(round(v[4] * (1 - v[5] / 100), 2))
+                break
+        else:
+            precios_desc.append(0.0)
 
-    # Fila Subtotal USD
-    subtotal_row = ["Subtotal USD", ""]
-    for col in df_pivot.columns[2:]:
-        total = df_pivot.iloc[-2][col]  # TOTAL
-        precio = df_pivot.iloc[-1][col]  # Precio
-        subtotal_row.append(total * precio)
-    df_pivot.loc[len(df_pivot)] = subtotal_row
+    # Agrupar ventas
+    agrupado = {}
+    for nota, fecha, libro, cantidad, precio, descuento in ventas:
+        if nota not in agrupado:
+            agrupado[nota] = {'fecha': fecha, 'libros': {}}
+        agrupado[nota]['libros'][libro] = agrupado[nota]['libros'].get(libro, 0) + cantidad
 
-    # Totales a la derecha
-    total_libros = sum(df_pivot.iloc[-3, 2:])
-    total_usd = sum(df_pivot.iloc[-1, 2:])
-    total_filas = len(df_pivot)
+    # Agregar filas de ventas
+    for nota, datos in agrupado.items():
+        fila = [nota, datos['fecha']]
+        for m in materias_presentes:
+            cant = datos['libros'].get(m, 0)
+            fila.append(cant if cant > 0 else '')
+        fila += ['', '']  # Total Libros y USD vacíos para evitar sobrecarga visual
+        hoja.append(fila)
 
-    df_pivot["TOTAL LIBROS"] = [""] * (total_filas - 3) + [total_libros, "", ""]
-    df_pivot["TOTAL USD"] = [""] * (total_filas - 1) + [total_usd]
+    # DEVOLUCIONES
+    hoja.append(['DEVOLUCIONES', '', *['' for _ in materias_presentes], '', ''])
+    fila_dev = [''] * len(encabezado)
+    for nota, fecha, libro, cantidad in devoluciones:
+        if libro in materias_presentes:
+            idx = materias_presentes.index(libro) + 2
+            fila_dev[idx] = -cantidad if cantidad > 0 else ''
+    hoja.append(fila_dev)
+    aplicar_estilo_fila(hoja[hoja.max_row], "FFCCCC")
 
-    # Guardar en memoria con estilo
+    # TOTAL LIBROS Y USD
+    fila_total = ['TOTAL', '']
+    for m in materias_presentes:
+        entregado = sum(datos['libros'].get(m, 0) for datos in agrupado.values())
+        devuelto = sum(d[3] for d in devoluciones if d[2] == m)
+        total = entregado - devuelto
+        fila_total.append(total)
+    total_libros = sum(fila_total[2:2+len(materias_presentes)])
+    total_usd = round(sum(fila_total[2+i] * precios_desc[i] for i in range(len(materias_presentes))), 2)
+    fila_total += [total_libros, total_usd]
+    hoja.append(fila_total)
+    aplicar_estilo_fila(hoja[hoja.max_row], "FCD5B4")
+
+    # SUB USD
+    fila_sub = ['SUB USD', '']
+    for i, m in enumerate(materias_presentes):
+        cantidad = fila_total[2+i]
+        fila_sub.append(round(cantidad * precios_desc[i], 2))
+    fila_sub += ['', total_usd]
+    hoja.append(fila_sub)
+    aplicar_estilo_fila(hoja[hoja.max_row], "B4C6E7")
+
+    # ABONOS
+    hoja.append([''] * len(encabezado))
+    hoja.append(['ABONOS', 'Fecha', 'Monto'] + [''] * (len(encabezado)-3))
+    aplicar_estilo_fila(hoja[hoja.max_row], "D9EAD3")
+    total_abonos = 0
+    for fecha, monto in abonos:
+        hoja.append(['', fecha, monto] + [''] * (len(encabezado)-3))
+        total_abonos += monto
+    hoja.append(['', 'TOTAL ABONOS', total_abonos] + [''] * (len(encabezado)-3))
+    aplicar_estilo_fila(hoja[hoja.max_row], "FFE599")
+
+    hoja.append(['', 'TOTAL USD', total_usd] + [''] * (len(encabezado)-3))
+    aplicar_estilo_fila(hoja[hoja.max_row], "D9D2E9")
+
+    hoja.append(['', 'SALDO', round(total_usd - total_abonos, 2)] + [''] * (len(encabezado)-3))
+    aplicar_estilo_fila(hoja[hoja.max_row], "FFF2CC")
+
+    # AJUSTES FINALES
+    for col in hoja.columns:
+        max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col)
+        hoja.column_dimensions[col[0].column_letter].width = max_length + 2
+
+    for row in hoja.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = borde
+
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_pivot.to_excel(writer, index=False, sheet_name='Entregas Detalladas')
-        ws = writer.book["Entregas Detalladas"]
-
-        # Estilos
-        bold_font = Font(bold=True)
-        fill_header = PatternFill("solid", fgColor="CCE5FF")
-        fill_total = PatternFill("solid", fgColor="FFFFCC")
-        fill_devolucion = PatternFill("solid", fgColor="FFD5C0")
-        border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
-
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-            nota = row[0].value
-            for cell in row:
-                cell.border = border
-                if cell.row == 1:
-                    cell.font = bold_font
-                    cell.fill = fill_header
-                elif cell.row in [total_filas - 1 + 1, total_filas, total_filas + 1]:
-                    cell.fill = fill_total
-                elif nota == "DEV":
-                    cell.fill = fill_devolucion
-
-        # Ajustar ancho de columnas
-        for column_cells in ws.columns:
-            length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
-            col_letter = column_cells[0].column_letter
-            ws.column_dimensions[col_letter].width = length + 2
-
-        # Obtener abonos
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute("SELECT fecha, monto FROM abonos WHERE cliente_id = ?", (cliente_id,))
-        abonos = c.fetchall()
-        conn.close()
-
-        if abonos:
-            start_row = total_filas + 5
-            ws.cell(row=start_row, column=1, value="Abonos").font = bold_font
-            ws.cell(row=start_row + 1, column=1, value="Fecha").font = bold_font
-            ws.cell(row=start_row + 1, column=2, value="Monto").font = bold_font
-
-            for i, (fecha, monto) in enumerate(abonos):
-                ws.cell(row=start_row + 2 + i, column=1, value=fecha)
-                ws.cell(row=start_row + 2 + i, column=2, value=monto)
-
-            total_abonos = sum(a[1] for a in abonos)
-            ws.cell(row=start_row + 2 + len(abonos), column=1, value="TOTAL ABONOS").font = bold_font
-            ws.cell(row=start_row + 2 + len(abonos), column=2, value=total_abonos).font = bold_font
-
+    wb.save(output)
     output.seek(0)
-    nombre_archivo = f"estado_cuenta_{nombre_cliente.replace(' ', '_')}.xlsx"
-    return send_file(output, download_name=nombre_archivo, as_attachment=True,
+    nombre_archivo = f"estado_cuenta_{cliente[1].replace(' ', '_')}.xlsx"
+    return send_file(output, as_attachment=True, download_name=nombre_archivo,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+#end
+
 
 
 if __name__ == '__main__':

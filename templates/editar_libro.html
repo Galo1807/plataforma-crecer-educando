@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Editar Libro</h2>
+    <form method="POST" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="nombre" class="form-label">Nombre del libro</label>
+            <input type="text" class="form-control" id="nombre" name="nombre" value="{{ libro[1] }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="precio" class="form-label">Precio</label>
+            <input type="number" step="0.01" class="form-control" id="precio" name="precio" value="{{ libro[2] }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="imagen" class="form-label">Cambiar imagen (opcional)</label>
+            <input type="file" class="form-control" id="imagen" name="imagen">
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <a href="{{ url_for('vista_libros') }}">Volver</a>
+    </form>
+</div>
+{% endblock %}

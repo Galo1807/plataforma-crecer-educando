@@ -3,9 +3,9 @@
 <div class="container mt-4">
     <h4>📦 Registro de Entregas - {{ cliente[1] }}</h4>
 
-    <form method="POST" action="{{ url_for('agregar_entrega', cliente_id=cliente[0]) }}">
+    <form method="POST" action="{{ url_for('agregar_entrega', cliente_id=cliente[0]) }}" enctype="multipart/form-data">
         <table class="table table-bordered text-center">
-            <thead>
+            <thead class="table-light">
                 <tr>
                     <th>📅 Fecha</th>
                     {% for libro in libros %}
@@ -14,27 +14,39 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- Fila de precios -->
                 <tr>
                     <td><strong>💲 Precio</strong></td>
                     {% for libro in libros %}
                         <td>${{ libro[2] }}</td>
                     {% endfor %}
                 </tr>
-                <!-- Fila de cantidades -->
                 <tr>
                     <td><input type="text" name="nota" class="form-control" placeholder="Nota de entrega"></td>
                     {% for libro in libros %}
                         <td>
                             <input type="hidden" name="materias[]" value="{{ libro[1] }}">
+                            <input type="hidden" name="precios[]" value="{{ libro[2] }}">
                             <input type="number" name="cantidades[]" class="form-control" min="0" value="0" required>
                         </td>
                     {% endfor %}
                 </tr>
-                <!-- Fila de fecha -->
+                <tr>
+                    <td><strong>% Descuento</strong></td>
+                    {% for libro in libros %}
+                        <td>
+                            <input type="number" name="descuentos[]" class="form-control" min="0" max="100" value="0">
+                        </td>
+                    {% endfor %}
+                </tr>
                 <tr>
                     <td colspan="{{ libros|length + 1 }}">
                         <input type="date" name="fecha" class="form-control" required>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="{{ libros|length + 1 }}">
+                        <label>📸 Subir imagen de la nota física:</label>
+                        <input type="file" name="imagen" accept="image/*" class="form-control">
                     </td>
                 </tr>
             </tbody>
@@ -43,36 +55,6 @@
         <button type="submit" class="btn btn-primary">➕ Agregar Nota</button>
         <a href="{{ url_for('ver_cliente', cliente_id=cliente[0]) }}" class="btn btn-secondary">🔙 Volver</a>
     </form>
-
-    <hr>
-
-    <h5 class="mt-4">📊 Totales por Materia en el Año</h5>
-    <table class="table table-striped text-center">
-        <thead>
-            <tr>
-                <th>📘 Materia</th>
-                <th>📦 Total Entregado</th>
-                <th>💲 Precio Unitario</th>
-                <th>💰 Total USD</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for libro in libros %}
-            <tr>
-                <td>{{ libro[1] }}</td>
-                <td>{{ totales[libro[1]].cantidad }}</td>
-                <td>${{ libro[2] }}</td>
-                <td>${{ "%.2f"|format(totales[libro[1]].cantidad * libro[2]) }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-        <tfoot>
-            <tr class="table-success">
-                <th colspan="3">TOTAL GENERAL</th>
-                <th>${{ "%.2f"|format(total_general) }}</th>
-            </tr>
-        </tfoot>
-    </table>
 
     <hr>
 
@@ -85,22 +67,33 @@
                 {% for libro in libros %}
                     <th>{{ libro[1] }}</th>
                 {% endfor %}
+                <th>💲 Total con Descuento</th>
+                <th>📸 Imagen</th>
+                <th>🗑️ Eliminar</th>
             </tr>
         </thead>
         <tbody>
-            {% for nota, grupo in detalle_notas.items() %}
+            {% for entrega in entregas %}
             <tr>
+                <td>{{ entrega.nota or 'Sin Nota' }}</td>
+                <td>{{ entrega.fecha }}</td>
+                {% for cantidad in entrega.cantidades %}
+                    <td>{{ cantidad|int if cantidad|int > 0 else '-' }}</td>
+                {% endfor %}
+                <td>${{ "%.2f"|format(entrega.total) }}</td>
                 <td>
-                    {{ nota or 'Sin Nota' }}
+                    {% if entrega.imagen %}
+                        <a href="{{ url_for('static', filename='notas/' ~ entrega.imagen) }}" download>📥 Descargar</a>
+                    {% else %}
+                        Sin imagen
+                    {% endif %}
+                </td>
+                <td>
                     <form method="POST" action="{{ url_for('eliminar_nota', cliente_id=cliente[0]) }}" style="display:inline;">
-                        <input type="hidden" name="nota" value="{{ nota }}">
+                        <input type="hidden" name="nota" value="{{ entrega.nota }}">
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar esta nota?')">🗑️</button>
                     </form>
                 </td>
-                <td>{{ grupo.fecha }}</td>
-                {% for libro in libros %}
-                    <td>{{ grupo.materias.get(libro[1], 0) }}</td>
-                {% endfor %}
             </tr>
             {% endfor %}
         </tbody>

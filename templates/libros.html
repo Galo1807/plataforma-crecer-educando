@@ -32,10 +32,20 @@
             border-radius: 4px;
             cursor: pointer;
             margin-bottom: 15px;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .btn:hover {
             background-color: #2ecc71;
+        }
+
+        .btn-warning {
+            background-color: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background-color: #e67e22;
         }
 
         .libro-card {
@@ -47,12 +57,17 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            justify-content: space-between;
         }
 
         .libro-card img {
             width: 80px;
             height: auto;
             border-radius: 4px;
+        }
+
+        .libro-info {
+            flex-grow: 1;
         }
 
         input[type="text"],
@@ -119,9 +134,12 @@
         {% for libro in libros %}
             <div class="libro-card">
                 <img src="{{ url_for('static', filename='images/' + libro[3]) }}" alt="Imagen del libro">
-                <div>
+                <div class="libro-info">
                     <strong>{{ libro[1] }}</strong><br>
                     Precio: ${{ libro[2] }}
+                </div>
+                <div>
+                    <a href="{{ url_for('editar_libro', libro_id=libro[0]) }}" class="btn btn-warning">✏️ Editar</a>
                 </div>
             </div>
         {% else %}
