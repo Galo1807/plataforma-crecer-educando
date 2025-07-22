@@ -804,6 +804,37 @@ def eliminar_proveedor(proveedor_id):
     flash("Proveedor eliminado exitosamente", "success")
     return redirect(url_for('vista_proveedores'))
 
+@app.route('/editar_libro/<int:libro_id>', methods=['GET', 'POST'])
+def editar_libro(libro_id):
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        precio = float(request.form['precio'])
+        imagen = request.files.get('imagen')
+
+        if imagen and imagen.filename:
+            filename = secure_filename(imagen.filename)
+            imagen.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            c.execute("UPDATE libros SET nombre=?, precio=?, imagen=? WHERE id=?", (nombre, precio, filename, libro_id))
+        else:
+            c.execute("UPDATE libros SET nombre=?, precio=? WHERE id=?", (nombre, precio, libro_id))
+
+        conn.commit()
+        conn.close()
+        flash("Libro actualizado correctamente", "success")
+        return redirect(url_for('vista_libros'))
+
+    # GET
+    c.execute("SELECT * FROM libros WHERE id=?", (libro_id,))
+    libro = c.fetchone()
+    conn.close()
+    return render_template('editar_libro.html', libro=libro)
+
 
 @app.route('/cliente/<int:cliente_id>/descargar_excel')
 def descargar_excel(cliente_id):
