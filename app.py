@@ -70,7 +70,7 @@ def guardar_entrega(cliente_id, fecha, nota, materias, cantidades, descuentos, p
             cursor.execute("""
                 INSERT INTO ventas (cliente_id, fecha, nota, libro, cantidad, precio_unitario, descuento, imagen)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cliente_id, fecha, nota, materia, int(cantidad), float(precio), int(descuento), nombre_imagen))
+            """, (cliente_id, fecha, nota, materia, int(cantidad), float(precio), float(descuento), nombre_imagen))
 
     conn.commit()
     conn.close()
@@ -95,13 +95,13 @@ def obtener_abonos(cliente_id):
     return abonos
 
 # Guardar devolución
-def guardar_devolucion(cliente_id, fecha, materia, cantidad):
+def guardar_devolucion(cliente_id, fecha, materia, cantidad, descuento):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO devoluciones (cliente_id, libro, cantidad, fecha)
-        VALUES (?, ?, ?, ?)
-    """, (cliente_id, materia, cantidad, fecha))
+        INSERT INTO devoluciones (cliente_id, libro, cantidad, fecha, descuento)
+        VALUES (?, ?, ?, ?, ?)
+    """, (cliente_id, materia, cantidad, fecha, descuento))
     conn.commit()
     conn.close()
 
@@ -230,6 +230,9 @@ def init_db():
             cantidad INTEGER,
             precio_unitario REAL,
             fecha TEXT,
+            nota TEXT,
+            descuento REAL,
+            imagen TEXT,
             FOREIGN KEY (cliente_id) REFERENCES clientes(id)
         )
     """)
@@ -407,11 +410,14 @@ def ver_cliente(cliente_id):
         cantidad * (precio_unitario * (1 - descuento / 100))
         for cantidad, precio_unitario, descuento in ventas
     )
-
-    cursor.execute("SELECT libro, cantidad FROM devoluciones WHERE cliente_id = ?", (cliente_id,))
+    
+    cursor.execute("SELECT libro, cantidad, descuento FROM devoluciones WHERE cliente_id = ?", (cliente_id,))
     devoluciones = cursor.fetchall()
-    total_devoluciones = sum(cant * precio_del_libro(lib) for lib, cant in devoluciones)
-
+    total_devoluciones = sum(
+        cant * precio_del_libro(lib) * (1 - descuento / 100)
+        for lib, cant, descuento in devoluciones
+    )
+    
     cursor.execute("SELECT monto FROM abonos WHERE cliente_id = ?", (cliente_id,))
     abonos = cursor.fetchall()
     total_abonos = sum(a[0] for a in abonos)
@@ -454,18 +460,20 @@ def agregar_entrega(cliente_id):
 
     return redirect(url_for('ver_entregas', cliente_id=cliente_id))
 
-
 @app.route('/cliente/<int:cliente_id>/agregar_devolucion', methods=['POST'])
 def agregar_devolucion(cliente_id):
     fecha = request.form['fecha']
     materias = request.form.getlist('materias[]')
     cantidades = request.form.getlist('cantidades[]')
+    descuentos = request.form.getlist('descuentos[]')
 
-    for materia, cantidad in zip(materias, cantidades):
-        if materia and int(cantidad) > 0:
-            guardar_devolucion(cliente_id, fecha, materia, int(cantidad))
+    for materia, cantidad, descuento in zip(materias, cantidades, descuentos):
+        if materia and float(cantidad) > 0:
+            guardar_devolucion(cliente_id, fecha, materia, float(cantidad), float(descuento))
 
     return redirect(url_for('ver_cliente', cliente_id=cliente_id))
+
+
 
 @app.route('/cliente/<int:cliente_id>/agregar_abono', methods=['POST'])
 def agregar_abono(cliente_id):

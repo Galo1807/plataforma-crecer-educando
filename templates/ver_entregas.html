@@ -34,7 +34,7 @@
                     <td><strong>% Descuento</strong></td>
                     {% for libro in libros %}
                         <td>
-                            <input type="number" name="descuentos[]" class="form-control" min="0" max="100" value="0">
+                            <input type="number" name="descuentos[]" class="form-control" step="0.01" min="0" max="100" value="0">
                         </td>
                     {% endfor %}
                 </tr>

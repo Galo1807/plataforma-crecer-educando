@@ -21,13 +21,14 @@
                         <td>${{ libro[2] }}</td>
                     {% endfor %}
                 </tr>
-                <!-- Fila de cantidades -->
+                <!-- Fila de cantidades y descuentos -->
                 <tr>
                     <td><input type="text" name="nota" class="form-control" placeholder="Nota de devolución"></td>
                     {% for libro in libros %}
                         <td>
                             <input type="hidden" name="materias[]" value="{{ libro[1] }}">
-                            <input type="number" name="cantidades[]" class="form-control" min="0" value="0" required>
+                            <input type="number" name="cantidades[]" class="form-control mb-1" min="0" value="0" placeholder="Cantidad" required>
+                            <input type="number" name="descuentos[]" class="form-control" step="0.01" min="0" max="100" value="0" placeholder="% Desc.">
                         </td>
                     {% endfor %}
                 </tr>
@@ -62,7 +63,7 @@
                 <td>{{ libro[1] }}</td>
                 <td>{{ totales[libro[1]].cantidad }}</td>
                 <td>${{ libro[2] }}</td>
-                <td>${{ "%.2f"|format(totales[libro[1]].cantidad * libro[2]) }}</td>
+                <td>${{ "%.2f"|format(totales[libro[1]].cantidad * libro[2]) }}</td> <!-- Este se ajustará en el siguiente paso -->
             </tr>
             {% endfor %}
         </tbody>
